@@ -32,14 +32,15 @@ class TestYahooFinance(unittest.TestCase):
         end_date = end_date.replace(microsecond=0)
 
         # Call the fetch_hist_data method
-        result = self.yahoo_finance.fetch_hist_data('BTC-USD', years=1)
+        result = self.yahoo_finance.fetch_hist_data('BTC-USD', days=365)
 
         # Assert that the returned DataFrame matches the mock data
         pd.testing.assert_frame_equal(result, mock_df)
         mock_download.assert_called_once_with(
             'BTC-USD', 
             start=start_date,
-            end=end_date
+            end=end_date,
+            interval="1d"
         )
 
     @patch('yfinance.download')  # Mock the yfinance.download method
@@ -56,14 +57,15 @@ class TestYahooFinance(unittest.TestCase):
         end_date = end_date.replace(microsecond=0)
 
         # Call the fetch_hist_data method
-        result = self.yahoo_finance.fetch_hist_data('BTC-USD', years=1)
+        result = self.yahoo_finance.fetch_hist_data('BTC-USD', days=365)
 
         # Assert that the result is None
         self.assertIsNone(result)
         mock_download.assert_called_once_with(
             'BTC-USD', 
             start=start_date,
-            end=end_date
+            end=end_date,
+            interval="1d"
         )
 
 if __name__ == '__main__':

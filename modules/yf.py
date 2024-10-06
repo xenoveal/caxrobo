@@ -11,37 +11,43 @@ class YahooFinance:
         """Initialize the YahooFinance class."""
         pass
 
-    def fetch_hist_data(self, symbol: str, years: int = 1) -> pd.DataFrame:
+    def fetch_hist_data(
+            self, 
+            symbol: str, 
+            days: int = 365, 
+            interval: str = "1d", 
+            end_date: datetime = datetime.now()
+    ) -> pd.DataFrame:
         """
         Fetch historical OHLCV data for a cryptocurrency from Yahoo Finance.
 
         Args:
             symbol (str): The ticker symbol of the cryptocurrency (e.g., 'BTC-USD' for Bitcoin).
-            years (int): The number of years of historical data to fetch (default is 10).
+            days (int): The number of days of historical data to fetch (default is 365 days).
+            interval (str): Valid intervals [1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo] (default is 1d).
+            end_date (datetime): the end date to get the data (default is current time).
 
         Returns:
             pd.DataFrame: A DataFrame containing the OHLCV data.
         """
-        # Define the time period (last 'years' years)
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=365 * years)
 
-        # Ensure to reset the time components for consistency
-        start_date = start_date.replace(microsecond=0)
+        start_date = (end_date - timedelta(days=days)).replace(microsecond=0)
         end_date = end_date.replace(microsecond=0)
 
-        # Fetch the historical data
-        crypto_data = yf.download(symbol, start=start_date, end=end_date)
+        try:
+            data = yf.download(symbol, start=start_date, end=end_date, interval=interval)
 
-        # Check if data is retrieved successfully
-        if crypto_data.empty:
-            logger.warning("No data retrieved from specified symbol in YahooFinance.")
+            if data.empty:
+                logger.warning(f"{symbol} returned empty in YahooFinance.")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error when getting the data from YahooFinance. Error: {e}")
             return None
 
         # Return the OHLCV data
-        logger.info("Success to get data from Yahoofinance.")
-        return crypto_data
-
+        logger.info("Success to get data from Yahoo Finance.")
+        return data
 
 # Example usage
 if __name__ == "__main__":

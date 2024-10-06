@@ -3,4 +3,5 @@
 logs/*
 dataset/*
 !dataset/.gitkeep
+!dataset/master-dataset.csv
 !logs/.gitkeep
