@@ -1,0 +1,3 @@
+# Ignore logs directory and everything inside it
+logs/
+.env
