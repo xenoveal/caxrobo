@@ -1,3 +1,6 @@
-# Ignore logs directory and everything inside it
-logs/
 .env
+
+logs/*
+dataset/*
+!dataset/.gitkeep
+!logs/.gitkeep
