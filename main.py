@@ -1,18 +1,18 @@
 # global var
 SYMBOL = "BTC-USD"
 INTERVAL = "1h"
-DAYS = 365
+DAYS = 720
 
-import ta
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt 
 
 from hmmlearn import hmm
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler
 from modules.logger import setup_logger
 
 logger = setup_logger('MainLogger', 'logs/main.log')
+
 
 def get_save_dataset(dataset_path: str) -> None:
     logger.info("Start function to get & save data..")
@@ -23,11 +23,6 @@ def get_save_dataset(dataset_path: str) -> None:
 
     csv_data.to_csv(dataset_path)
 
-# Define a function to remove outliers using the IQR method
-def remove_outliers_iqr(df, column, lower_percentile=0.005, upper_percentile=0.995):
-    lower_bound = df[column].quantile(lower_percentile)
-    upper_bound = df[column].quantile(upper_percentile)
-    return df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
 
 def data_processing(dataset_path: str) -> pd.DataFrame:
     logger.info("Start data processing..")
@@ -35,37 +30,20 @@ def data_processing(dataset_path: str) -> pd.DataFrame:
 
     df['Datetime'] = pd.to_datetime(df['Datetime'])
     df.set_index('Datetime', inplace=True)
-    df = df.resample('h').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
     
     df['Returns'] = df['Close'].pct_change()
     df['Volatility'] = df['Returns'].rolling(window=24).std()
     df['VolumeChange'] = df['Volume'].pct_change()
-    # df['RSI'] = ta.momentum.RSIIndicator(df['Close'], window=14).rsi()
-    # macd_indicator = ta.trend.MACD(df['Close'], window_slow=26, window_fast=12, window_sign=9)
-    # df['MACD'] = macd_indicator.macd()
-    # df['MACD_Signal'] = macd_indicator.macd_signal()
-    # df['MACD_Diff'] = macd_indicator.macd_diff()
-    
-    # df = df[(df['Returns'] >= -0.05) & (df['Returns'] <= 0.05)]
-    # df = df[df['VolumeChange'] <= 30]
-    # df = df[df['Volatility'] <= 0.048]
-
-    # Remove outliers
-    # df = remove_outliers_iqr(df, 'Returns')
-    # df = remove_outliers_iqr(df, 'VolumeChange')
-    # df = remove_outliers_iqr(df, 'Volatility')
-
-    # df['MA200Change'] = df['Close'].rolling(window=200).mean().pct_change()
-    # df['MA200'] = df['Close'].rolling(window=200).mean()
-    
 
     logger.info(f"Dropping null & infinity rows. Initial data shape: {df.shape}")
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
+    df.fillna(method='ffill', inplace=True)
     df.dropna(inplace=True)
 
     logger.info(f"Data processing completed. Data shape: {df.shape}")
     return df
+
 
 def train_hmm(
     data: pd.DataFrame, n_components: int = 3, 
@@ -73,12 +51,10 @@ def train_hmm(
 ) :
     logger.info(f"Training HMM with {n_components} components...")
     X = data[features].values
-    logger.debug(X)
     
     logger.info("Normalizing features...")
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
-    logger.debug("Scaled features: \n" + str(pd.DataFrame(X_scaled, columns=features).describe()))
 
     logger.info("Fitting HMM model...")
     model = hmm.GaussianHMM(
@@ -90,7 +66,7 @@ def train_hmm(
     logger.info("HMM training completed.")
     return model, scaler
 
-# Predict states
+
 def predict_states (
     model, data, scaler,
     features = ['Returns', 'Volatility', 'VolumeChange']
@@ -102,18 +78,18 @@ def predict_states (
     logger.info(f"States predicted. Unique states: {np.unique (states)}")
     return states
 
+
 def analyze_states (data, states, model):
     logger.info("Analyzing states...")
     df_analysis = data.copy()
     df_analysis['State'] = states
 
     for state in range(model.n_components) :
-        logger.info(f"\nAnalyzing State {state}:")
         state_data = df_analysis[df_analysis['State']==state]
-        logger.info(state_data[['Returns','Volatility', 'VolumeChange']].describe())
-        logger.info(f"Number of periods in State {state}: {len(state_data)}")
+        logger.info(f"[State-Analysis] {state}: \n{state_data[['Returns','Volatility', 'VolumeChange']].describe()}")
+        logger.info(f"[State-Analysis] {state} - Number of periods: {len(state_data)}")
 
-# Plot results
+
 def plot_results (data, states, model):
     logger.info("Plotting results...")
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize= (15, 10), sharex=True)
@@ -134,38 +110,26 @@ def plot_results (data, states, model):
     logger.info("Showing plot...")
     plt.show()
 
-def main():
-    # dataset_path = f"dataset/{SYMBOL}-{DAYS}-{INTERVAL}.csv"
-    dataset_path = "dataset/BTCUSD_1h.csv"
 
-    # get_save_dataset(dataset_path)
+def main():
+    dataset_path = f"dataset/{SYMBOL}-{DAYS}-{INTERVAL}.csv"
+
+    get_save_dataset(dataset_path)
     df = data_processing(dataset_path)
-    # df = df[(df.index > '2021-01-01') & (df.index < '2021-01-10')]
 
     features = ['Returns', 'Volatility', 'VolumeChange']
-
-    # df[features].plot(subplots=True, figsize=(10, 10))
     
-    # Plot the VolumeChange column to visualize its distribution
-    # plt.figure(figsize=(10, 6))
-    # plt.hist(df['VolumeChange'], bins=100)
-    # plt.ylabel('Frequency')
-
-    # plt.show()
-    # return
     model, scaler = train_hmm(df, 3, features)
     states = predict_states(model, df, scaler, features)
 
     analyze_states(df, states, model)
     plot_results(df, states, model)
     
-    logger.info("Transition Matrix:")
-    logger.info(model.transmat_)
-    logger.info("\nPrinting means and covariances of each state...")
+    logger.info(f"Transition Matrix: \n{model.transmat_}")
+    logger.info("Printing means and covariances of each state...")
     for i in range (model.n_components) :
-        print(f"State {i}:")
-        print("Mean:", model.means_[i])
-        print("Covariance:", model.covars_[i])
+        logger.info("State %s === Mean: \n%s", str(i), str(model.means_[i]))
+        logger.info("State %s === Covariance: \n%s", str(i), str(model.covars_[i]))
 
     logger.info("Bitcoin HMM analysis completed.")
 
