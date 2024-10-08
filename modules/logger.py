@@ -1,7 +1,7 @@
 import logging
 import os
 
-def setup_logger(name, log_file, level=logging.DEBUG):
+def setup_logger(name, log_file, level=logging.INFO):
     """Function to set up a logger.
     
     Args:

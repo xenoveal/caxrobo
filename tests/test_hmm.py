@@ -3,10 +3,8 @@ import pandas as pd
 import numpy as np
 from hmmlearn import hmm
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
-from modules.logger import setup_logger
 from modules.hmm import HMMBuilder
 
-logger = setup_logger('TestLogger', 'logs/test_hmm.log')
 
 class TestHMMBuilder(unittest.TestCase):
 
