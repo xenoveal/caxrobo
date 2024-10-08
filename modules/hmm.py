@@ -27,6 +27,7 @@ class HMMBuilder:
                  scaler: any = StandardScaler(), model: any = hmm.GaussianHMM(verbose=True)):
         """
         Initializes the HMMBuilder with dataset path, features, scaler, and HMM model.
+        If using CategoricalHMM, no scaler is applied.
         
         Parameters:
         ----------
@@ -41,8 +42,13 @@ class HMMBuilder:
         """
         self.features = features
         self.df = self._data_processing(dataset_path)
-        self.scaler = scaler
         self.model = model
+
+        # If the model is CategoricalHMM, no scaling is applied
+        if isinstance(model, hmm.CategoricalHMM):
+            self.scaler = None
+        else:
+            self.scaler = scaler
 
     def _data_processing(self, dataset_path: str) -> pd.DataFrame:
         """
@@ -98,9 +104,13 @@ class HMMBuilder:
         # Extract feature data
         X = self.df[self.features].values
 
-        # Scale the features
-        logger.info("Normalizing features...")
-        X_scaled = self.scaler.fit_transform(X)
+        # If not using CategoricalHMM, scale the features
+        if self.scaler is not None:
+            logger.info("Normalizing features...")
+            X_scaled = self.scaler.fit_transform(X)
+        else:
+            logger.info("Using integer-encoded features for CategoricalHMM.")
+            X_scaled = X  # No scaling, assume data is already integer-encoded
 
         # Fit the HMM model
         logger.info("Fitting HMM model...")
@@ -126,7 +136,12 @@ class HMMBuilder:
         """
         logger.info("Predicting hidden states...")
         X = to_predict[self.features].values
-        X_scaled = self.scaler.transform(X)
+
+        # If not using CategoricalHMM, scale the features
+        if self.scaler is not None:
+            X_scaled = self.scaler.transform(X)
+        else:
+            X_scaled = X  # No scaling, assume data is already integer-encoded
         
         states = self.model.predict(X_scaled)
         logger.info(f"States predicted. Unique states: {np.unique(states)}")

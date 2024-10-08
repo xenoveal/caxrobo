@@ -28,8 +28,8 @@ class TestYahooFinance(unittest.TestCase):
         start_date = end_date - timedelta(days=365)
 
         # Ensure to reset the time components for consistency
-        start_date = start_date.replace(microsecond=0)
-        end_date = end_date.replace(microsecond=0)
+        start_date = start_date.replace(microsecond=0, second=0, minute=0, hour=0)
+        end_date = end_date.replace(microsecond=0, second=0, minute=0, hour=0)
 
         # Call the fetch_hist_data method
         result = self.yahoo_finance.fetch_hist_data('BTC-USD', days=365)
@@ -53,8 +53,8 @@ class TestYahooFinance(unittest.TestCase):
         start_date = end_date - timedelta(days=365)
 
         # Ensure to reset the time components for consistency
-        start_date = start_date.replace(microsecond=0)
-        end_date = end_date.replace(microsecond=0)
+        start_date = start_date.replace(microsecond=0, second=0, minute=0, hour=0)
+        end_date = end_date.replace(microsecond=0, second=0, minute=0, hour=0)
 
         # Call the fetch_hist_data method
         result = self.yahoo_finance.fetch_hist_data('BTC-USD', days=365)

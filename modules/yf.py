@@ -31,8 +31,8 @@ class YahooFinance:
             pd.DataFrame: A DataFrame containing the OHLCV data.
         """
 
-        start_date = (end_date - timedelta(days=days)).replace(microsecond=0)
-        end_date = end_date.replace(microsecond=0)
+        start_date = (end_date - timedelta(days=days)).replace(microsecond=0, second=0, minute=0, hour=0)
+        end_date = end_date.replace(microsecond=0, second=0, minute=0, hour=0)
 
         try:
             data = yf.download(symbol, start=start_date, end=end_date, interval=interval)
