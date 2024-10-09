@@ -23,7 +23,6 @@ def get_save_dataset(dataset_path: str) -> None:
 
     csv_data.to_csv(dataset_path)
 
-
 def analyze_states(data, states, model):
     logger.info("Analyzing states...")
     df_analysis = data.copy()
@@ -34,28 +33,36 @@ def analyze_states(data, states, model):
         logger.info(f"[State-Analysis] {state} - Number of periods: {len(state_data)}")
         logger.info(f"[State-Analysis] {state}: \n{state_data[['Returns', 'Volatility', 'VolumeChange']].describe()}")
 
-
-def plot_results(data, states, model):
-    logger.info("Plotting results...")
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
-    ax1.plot(data.index, data['Close'])
+def plot_results(data, states, model, portfolio_value):
+    logger.info("Plotting results with portfolio overlay...")
+    
+    fig, ax1 = plt.subplots(figsize=(15, 7))
+    
+    # Plot BTC closing price
+    ax1.plot(data.index, data['Close'], label='BTC Price', color='blue', lw=2)
+    ax1.set_ylabel('BTC Price', color='blue')
+    
+    # Fill the states on the same BTC price chart
     for state in range(model.n_components):
         mask = (states == state)
         ax1.fill_between(
             data.index, data['Close'].min(), data['Close'].max(),
             where=mask, alpha=0.3, label=f'State {state}'
         )
-    ax1.legend()
-    ax2.plot(data.index, data['Returns'])
-    ax2.set_title('Bitcoin Returns')
-    ax2.set_ylabel('Returns')
-    ax2.set_xlabel('Datetime')
+    ax1.legend(loc='upper left')
 
+    # Create a second y-axis to overlay portfolio value
+    ax2 = ax1.twinx()
+    ax2.plot(data.index, portfolio_value, label='Portfolio Value', color='green', lw=2)
+    ax2.set_ylabel('Portfolio Value (USD)', color='green')
+    ax2.legend(loc='upper right')
+    
+    plt.title('BTC Price and Portfolio Value Over Time')
     plt.tight_layout()
-    logger.info("Showing plot...")
+
     plt.show()
 
-def bruteforce_backtest(to_predict, states, initial_balance, model):
+def bruteforce_backtest(to_predict, states, initial_balance, model) -> dict:
     logger.info("Running bruteforce backtest...")
 
     best_result = {
@@ -106,9 +113,7 @@ def main():
     to_predict = hmm.df
     states = hmm.predict_states(to_predict)
 
-    # Analyze and plot the states
     analyze_states(to_predict, states, hmm.model)
-    plot_results(to_predict, states, hmm.model)
 
     logger.info(f"Transition Matrix: \n{hmm.model.transmat_}")
     logger.info("Printing means and covariances of each state...")
@@ -118,15 +123,25 @@ def main():
 
     # Bruteforce backtest to find the best buy/sell states
     # best_result = bruteforce_backtest(to_predict, states, initial_balance=100, model=hmm.model)
-    # best_backtest = Backtest(data=to_predict, states=states, initial_balance=100,
-    #                         buy_state=best_result['buy_states'], sell_state=best_result['sell_states'])
-    
     # logger.info(f"Best Buy States: {best_result['buy_states']}")
     # logger.info(f"Best Sell States: {best_result['sell_states']}")
     # logger.info(f"Backtesting - Final Portfolio Value: {best_result['final_portfolio_value']}")
 
-    # best_backtest.strategy()
+    '''
+    2024-10-08 21:25:34,670 - MainLogger - INFO - Best Buy States: [2, 3, 6]
+    2024-10-08 21:25:34,670 - MainLogger - INFO - Best Sell States: [0, 4, 5]
+    2024-10-08 21:25:34,671 - MainLogger - INFO - Backtesting - Final Portfolio Value: 737.1641624345604
+    '''
+    best_result = {
+        'buy_states': [2, 3, 6],
+        'sell_states': [0, 4, 5],
+        'final_portfolio_value': 737.16
+    }
+    best_backtest = Backtest(data=to_predict, states=states, initial_balance=100,
+                            buy_state=best_result['buy_states'], sell_state=best_result['sell_states'])
+    best_backtest.strategy()
     # best_backtest.plot_performance()
+    plot_results(to_predict, states, hmm.model, best_backtest.portfolio_value)
 
 if __name__ == "__main__":
     main()
