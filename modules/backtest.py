@@ -5,6 +5,8 @@ from modules.logger import setup_logger
 
 logger = setup_logger('BacktestLogger', 'logs/backtest.log')
 
+#TODO: Update backtest to only 60% of random historical data and 40% testing/sanity data
+
 class Backtest:
     """
     Class for backtesting a trading strategy based on HMM hidden states.
