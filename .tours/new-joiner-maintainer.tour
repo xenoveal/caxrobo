@@ -1,0 +1,81 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "Maintainer's tour — what you can do, and what will bite you",
+  "description": "A guided path through trading-bot v0.3.0 for whoever maintains it: the CLI entry point, where truth is stored, the plug-in seam you extend, the gate that judges strategies, and the three interlocks that exist to stop you fooling yourself. Pairs with README.md.",
+  "steps": [
+    {
+      "directory": "src/trading_bot",
+      "title": "1. Orientation — the whole engine",
+      "description": "**Situation.** Everything that runs lives here. `data/` fetches and stores candles, `indicators/` and `signals/` are the hand-rolled maths, `framework/` is the plug-in system, `backtest/` holds the validation gate, `evolution/` searches, `feedback/` reviews closed trades, `ui/` serves the dashboard, and `cli.py` is the single door in.\n\n**Mechanism.** There is no service, no daemon, no queue. It is a CLI over two SQLite databases.\n\n**Implication.** As maintainer you will spend most of your time in exactly three places: `config.py` (every tunable, each with the measurement behind it), `plugins/` (where you add behaviour), and `backtest/walkforward.py` (what decides whether your idea is real).\n\n**Gotcha.** `signals/` looks like the strategy engine but is the *frozen legacy* v0.2.0 path, held byte-identical by a parity test. New work goes through `framework/` + `plugins/`, never here."
+    },
+    {
+      "file": "src/trading_bot/cli.py",
+      "line": 45,
+      "title": "2. The one entry point — 17 commands",
+      "description": "**Situation.** `main()` builds every subcommand you will ever run. There is no console script, so it is always `.venv/bin/python -m trading_bot.cli <cmd>`.\n\n**Mechanism.** One argparse tree: data (`backfill`, `poll`, `gap-report`), live questions (`regime`, `signal`), history (`backtest`, `graph-backtest`, `benchmark`), judgement (`walkforward`), framework (`plugins`, `graph-validate`), the dashboard (`ui`), learning (`review`), search (`evolve`, `campaign`), diagnostics (`detector-report`, `correlation-report`).\n\n**Implication.** `--help` on any subcommand is authoritative — it is generated from this file, so it cannot drift from reality the way prose can.\n\n**Gotcha.** This file is ~2,350 lines and is the known soft spot in the codebase. Repeated flags like `--symbol` are `action=\"append\"`: pass `--symbol BTCUSDT --symbol ETHUSDT`, never a comma-separated list."
+    },
+    {
+      "file": "src/trading_bot/config.py",
+      "line": 11,
+      "title": "3. Config is the source of truth — and an argument log",
+      "description": "**Situation.** Three production symbols, four natively-fetched timeframes, and the path to 117 MB of price history.\n\n**Mechanism.** Every constant in this 745-line file carries the measurement that justifies it. Names are namespaced by the phase that introduced them: `EVO_*`, `CAMPAIGN_*`, `HOLDOUT_*`, `REVIEW_*`, `DETECTOR_*`, `UI_*`.\n\n**Implication.** **Read the comment before changing the value.** Several constants are explicitly frozen — Donchian 20/55 and MACD 12/26/9 are canonical rather than fitted, and `ATR_STOP_MULTIPLE = 1.5` was derived from a cost constraint, never from returns. Changing one consumes a degree of freedom that has to be written down.\n\n**Gotcha.** `TIMEFRAMES` deliberately excludes `1m`, and `RESEARCH_SYMBOLS` further down is *generated* by `correlation-report`. Do not hand-edit or reorder that tuple — downstream tables key off its exact ordering."
+    },
+    {
+      "file": "src/trading_bot/data/storage.py",
+      "line": 205,
+      "title": "4. Reading candles — the inclusive-bounds trap",
+      "description": "**Situation.** `load_candles` is how every backtest, gate run and diagnostic gets its data.\n\n**Mechanism.** Timestamps are candle **OPEN** times in epoch **milliseconds**, **UTC**. Each timeframe is stored as fetched from the exchange; nothing is ever resampled.\n\n**Implication.** Its bounds are **INCLUSIVE**, while spans elsewhere in the codebase are half-open `[start, end)`. Passing a half-open end straight in silently includes one extra bar.\n\n**Gotcha.** The bigger trap is upstream: `poll` can persist a *partial* daily bar if polling stops mid-day, so `MAX(ts)` may return a bar that looks closed and holds only a few hours of trade. Five separate phases found their own plans telling them to use raw `MAX(ts)` for a span boundary — a lookahead bug that always flatters. Derive span ends from the last **complete** bar."
+    },
+    {
+      "directory": "src/trading_bot/plugins",
+      "title": "5. The seam you extend",
+      "description": "**Situation.** Seven plug-in kinds: `data`, `detectors`, `confirmations`, `policies`, `filters`, `reviewers`, `mutators`.\n\n**Mechanism.** Drop a module in the right subpackage and it is discovered automatically. Adding one requires **zero engine-core edits** — a property enforced by test, with `engine.py`, `signals/`, `regime/`, `indicators/`, `risk/`, `metrics.py` and `equity.py` all showing an empty diff across the phase that introduced the framework.\n\n**Implication.** This is where nearly all of your future work belongs. Declare `ParamSpec` bounds so the evolutionary mutator can jitter your parameters legally.\n\n**Gotcha.** **No new indicator dependency, ever** — `pandas-ta` vanished from PyPI and TA-Lib needs a C library, so everything is hand-rolled. Also note `detectors/_geometry.py` intentionally disagrees with the frozen `signals/patterns.py`: one is correct, the other reproduces v0.2.0 exactly. Do not converge them while the parity test stands."
+    },
+    {
+      "file": "src/trading_bot/framework/registry.py",
+      "line": 248,
+      "title": "6. How discovery actually works",
+      "description": "**Situation.** `load_all()` walks the plug-in package and builds the registry.\n\n**Mechanism.** It takes a package *string* rather than a module object, so tests can point it at a throwaway package.\n\n**Implication.** If you script against the framework directly, **call `registry.load_all()` first**. Loading a strategy graph without it raises `GraphError: unknown plug-in ... (0 registered)` — which reads like a corrupt file but only means the registry is empty.\n\n**Gotcha.** `cli plugins` is the fastest way to confirm your new plug-in was picked up before you debug anything harder."
+    },
+    {
+      "file": "src/trading_bot/backtest/walkforward.py",
+      "line": 100,
+      "title": "7. THE GATE — seven conditions that try to reject you",
+      "description": "**Situation.** `GATE_CONDITIONS` is the definition of \"does this strategy work\": sample adequacy, Sharpe ≥ 1.0, deflated Sharpe > 0.95, max drawdown ≤ 25%, per-symbol expectancy all positive, and two benchmark comparisons.\n\n**Mechanism.** Train on rolling windows, test out-of-sample, pool the folds, then score. `walk_forward_pooled` further down is the single scoring path — evolution reaches fitness through here and nowhere else.\n\n**Implication.** **Every evaluation is charged as a multiple-testing trial, and the deflated-Sharpe bar rises with the count.** At 1 trial it wants annualized Sharpe 2.39; at 462 it wants 7.58. Searching harder makes passing harder. The only honest levers are more independent observations and a *smaller* pre-registered search.\n\n**Gotcha.** The two `beats_benchmark_*` conditions are nearly toothless in a bear span — they can pass while the strategy loses 45%, because they only mean \"lost less than holding.\" Always read them beside the benchmark's absolute return."
+    },
+    {
+      "file": "src/trading_bot/evolution/oracle.py",
+      "line": 189,
+      "title": "8. Why you cannot score a strategy off the books",
+      "description": "**Situation.** `GateOracle` is the only way a candidate gets a number.\n\n**Mechanism.** The trial ledger is the **first positional parameter with no default**, and every other parameter is keyword-only. `GateOracle()` is a `TypeError`; `ledger=None` is a `ValueError`. There is no module-level function that takes a graph and returns a score.\n\n**Implication.** Untracked evaluation is *structurally impossible* rather than merely discouraged. This is the design pattern to imitate when you add anything that could quietly inflate a result.\n\n**Gotcha.** Fitness is `excess_sharpe`, which **rewards not trading** — beating a falling benchmark is easier if you barely trade, and one generation's winner had a single trade at Sharpe 4.608. A champion trade floor patches *selection*, but the search is still biased. If you change fitness, pre-register the change before searching."
+    },
+    {
+      "file": "src/trading_bot/config.py",
+      "line": 644,
+      "title": "9. Interlock 1 — the holdout is spent",
+      "description": "**Situation.** 182 days, `[2026-01-26, 2026-07-27)`, that no evolution generation has ever scored.\n\n**Mechanism.** Neither endpoint was chosen. The start is the frozen ceiling of the evolution span — verified against the ledger, where zero of 462 charged evaluations touched data past it. The end is the last **complete** daily bar, because the stored 2026-07-27 bar is a 7-hour partial.\n\n**Implication.** **This holdout has already been consumed once.** Any further use is no longer a clean experiment, and the result must be stamped accordingly.\n\n**Gotcha.** The original plan said 2026-01-01, which would have handed evolution 25 days it had already scored. That correction is the single most consequential number in the project — a reminder that a \"holdout\" is only unseen if you can prove it."
+    },
+    {
+      "file": "src/trading_bot/campaign.py",
+      "line": 222,
+      "title": "10. Interlock 2 — the code refuses you",
+      "description": "**Situation.** The holdout stage checks `HOLDOUT_LOCKED` and refuses to run when it is false.\n\n**Mechanism.** Two guards in sequence: this one, then `holdout_is_consumed()`, which blocks a second run unless you pass `--force-holdout-rerun REASON`. The reason is recorded and the output stamped `NOT A CLEAN HOLDOUT`.\n\n**Implication.** Flipping either is a *recorded decision*, not a convenience. Exit codes carry the same intent: **1 means the gate failed, which is a valid completed outcome**; only **2** means no verdict was produced. An honest \"no\" exits 1 by design, so do not wire CI to treat 1 as breakage.\n\n**Gotcha.** Explicitly forbidden as a reaction to a bad verdict: a lower trial count, a lower trade floor, a shorter holdout, a different champion rule, or \"one more generation.\" Each is a new campaign owing the combined trial count."
+    },
+    {
+      "file": "src/trading_bot/ui/api.py",
+      "line": 356,
+      "title": "11. Interlock 3 — the UI refuses to lose your work",
+      "description": "**Situation.** `_graph_to_stages` returns `editable=False` for any graph with more than one branch, or with a branch disabled.\n\n**Mechanism.** The composer is a *linear* editor. A multi-branch (regime-dispatching) graph cannot be represented in it, so the page renders read-only instead of flattening and re-saving it — a data-loss guard backs this on the write path too.\n\n**Implication.** Of the four shipped strategies only `tech-pattern` is editable, and it round-trips to a bit-identical graph hash, so editing it is lossless. The other three are read-only by design, not by bug.\n\n**Gotcha.** The dashboard is **loopback-only with no auth**, and refuses a non-loopback host with no override flag — this machine holds the logic and the irreplaceable price store. Also only one heavy run at a time: a second concurrent backtest or gate run gets HTTP 429."
+    },
+    {
+      "file": "README.md",
+      "line": 1,
+      "title": "12. The nine use cases, written out",
+      "description": "**Situation.** The maintainer's guide: every command grouped by intent, with the exact invocation and the gotcha attached to each.\n\n**Mechanism.** Nine use cases, in the order you will need them — keep data fresh, ask what it would trade, test over history, get an honest verdict, build visually, learn from closed trades, search, run the campaign, diagnose.\n\n**Implication.** Start at use case 1 every session. Every other command reads stored candles, so stale data silently produces stale conclusions and nothing warns you.\n\n**Gotcha.** The headline is not optional context: **the gate fails, the champion lost 45.47% out-of-sample, and nothing here places an order.** Read `KNOWN-LIMITATIONS-v0.3.0.md` before trusting any number this tool prints."
+    },
+    {
+      "title": "13. What you can do now",
+      "description": "You can trace any command from `cli.py` to the gate that judges its output, add a plug-in without touching the engine core, and explain why the deflated-Sharpe bar moves when you search harder.\n\n**A safe first change**, in order:\n1. `gap-report` → `backfill` → `gap-report` until the data is clean.\n2. `plugins --kind detector` to see the extension surface.\n3. Write a detector under `plugins/detectors/`, with `ParamSpec` bounds.\n4. `graph-validate` your graph, then `graph-backtest --audit --rr-report`.\n5. `benchmark` over the same span — **always**, or you have no null.\n6. Only then `walkforward`, knowing it charges a trial.\n7. `pytest -q -m \"not network\"` → 1252 passed, 2 deselected.\n\n**Leave the holdout alone.** It is spent, and the next clean measurement is worth more than any single result you could extract from it.\n\nThe discipline this codebase is built on, in one line: *correctness is never negotiated against results.* When a change makes the numbers look better, that is precisely when to write down why."
+    }
+  ]
+}

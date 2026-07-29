@@ -1,0 +1,630 @@
+/* trading_bot dashboard — dark-first app shell.
+ *
+ * SERIES TOKENS ARE UNCHANGED from scripts/build_performance_chart.py:454-535,
+ * deliberately: the live UI and the committed report charts must read as one
+ * system. They were validated (OKLab lightness band, chroma floor, adjacent-pair
+ * CVD separation, normal-vision floor, contrast) in both modes before this
+ * rewrite. Dark passes all six checks. LIGHT CARRIES ONE CONTRAST WARN --
+ * --s3 green 2.74:1 and --s4 amber 2.11:1 against --surface-1, below 3:1 -- so
+ * every chart using them ALSO ships visible labels and a table view as relief.
+ * That is why series identity is never colour-alone here, and it is a further
+ * reason dark is the default rather than a preference-follow.
+ */
+
+/* ---------- tokens: DARK IS THE DEFAULT (Jesse-style; also the passing mode) */
+:root {
+  color-scheme: dark;
+
+  --plane: #0d0d0d;
+  --surface-1: #1a1a19;
+  --surface-2: #212120;
+  --rail: #141413;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s4: #c98500;
+  --good: #2bb32b;
+  --crit: #e2564f;
+  --warn: #c98500;
+  --oos: rgba(57, 135, 229, 0.10);
+
+  --accent: #3987e5;
+  --accent-ink: #ffffff;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --rail-w: 200px;
+  --shadow: 0 6px 22px rgba(0, 0, 0, 0.38);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --plane: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --surface-2: #f4f4f1;
+  --rail: #f2f2ef;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --border-strong: rgba(11, 11, 11, 0.20);
+
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --good: #0ca30c;
+  --crit: #d03b3b;
+  --warn: #eda100;
+  --oos: rgba(42, 120, 214, 0.07);
+
+  --accent: #2a78d6;
+  --shadow: 0 6px 22px rgba(0, 0, 0, 0.10);
+}
+
+* { box-sizing: border-box; }
+
+/* MUST precede any rule that sets `display` on an element we also toggle with the
+   `hidden` attribute. A bare `display:flex/grid` OVERRIDES `hidden`, silently
+   painting "hidden" panels — this shipped as a permanent empty red error bar
+   until it was caught by looking at the rendered page. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--text-primary);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- app shell ---------------------------------------------------- */
+#app {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "brand top" "rail main";
+  min-height: 100vh;
+}
+
+.brand {
+  grid-area: brand;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 52px;
+  background: var(--rail);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.brand .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--s1); flex: none;
+}
+
+.topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 16px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .spacer { flex: 1 1 auto; }
+.topbar .meta {
+  color: var(--muted); font-size: 12px;
+  display: flex; gap: 12px; flex-wrap: wrap;
+  min-width: 0; overflow: hidden;
+}
+.topbar .meta code {
+  font-family: var(--mono); font-size: 11.5px; color: var(--text-secondary);
+}
+
+.rail {
+  grid-area: rail;
+  background: var(--rail);
+  border-right: 1px solid var(--border);
+  padding: 10px 8px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.rail .group {
+  color: var(--muted); font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 12px 8px 4px;
+}
+.navlink {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: var(--radius-sm);
+  color: var(--text-secondary); text-decoration: none;
+  font-size: 13.5px; border: 1px solid transparent; cursor: pointer;
+  background: none; width: 100%; text-align: left; font-family: inherit;
+}
+.navlink:hover { background: var(--surface-2); color: var(--text-primary); }
+.navlink[aria-current="page"] {
+  background: var(--surface-2); color: var(--text-primary);
+  border-color: var(--border); font-weight: 600;
+}
+.navlink .ic { width: 15px; text-align: center; flex: none; opacity: 0.85; }
+.rail .fill { flex: 1 1 auto; }
+.rail .foot { color: var(--muted); font-size: 11px; padding: 8px 9px; line-height: 1.45; }
+
+main {
+  grid-area: main;
+  min-width: 0;
+  padding: 16px;
+  overflow-x: hidden;
+}
+.view[hidden] { display: none; }
+.view-head { margin: 0 0 12px; }
+.view-head h1 { font-size: 19px; margin: 0 0 2px; letter-spacing: -0.01em; }
+.view-head p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+
+/* ---------- panels ------------------------------------------------------- */
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+.panel > header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.panel > header h2 { font-size: 13.5px; margin: 0; font-weight: 650; }
+.panel > header .spacer { flex: 1 1 auto; }
+.panel .body { padding: 14px; }
+.panel .body.tight { padding: 8px 14px 14px; }
+.panel .body.flush { padding: 0; }
+.scroll-x { overflow-x: auto; }
+
+.cols { display: grid; gap: 12px; }
+@media (min-width: 1100px) {
+  .cols.two { grid-template-columns: 1fr 1fr; }
+  .cols.side { grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+  /* A hidden panel is display:none and so leaves its grid track EMPTY, which
+     stranded a half-width chart beside dead space. Collapse to one column when
+     either child is hidden. */
+  .cols.two:has(> .panel[hidden]) { grid-template-columns: minmax(0, 1fr); }
+}
+
+.note {
+  color: var(--muted); font-size: 12px; margin: 8px 0 0; line-height: 1.5;
+}
+.hint { color: var(--text-secondary); font-size: 12.5px; margin: 0 0 10px; }
+.empty {
+  color: var(--muted); font-size: 13px; padding: 22px 14px; text-align: center;
+}
+
+/* ---------- honesty callouts (the whole point of this product) ----------- */
+.callout {
+  border-left: 3px solid var(--warn);
+  background: var(--surface-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 9px 12px; margin: 0 0 12px;
+  color: var(--text-secondary); font-size: 12.5px; line-height: 1.5;
+}
+.callout strong { color: var(--text-primary); }
+.callout.crit { border-left-color: var(--crit); }
+.callout.info { border-left-color: var(--s1); }
+
+#error {
+  background: var(--crit); color: #fff; border-radius: var(--radius-sm);
+  padding: 10px 14px; margin-bottom: 12px; font-size: 13px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+#error button {
+  margin-left: auto; background: rgba(0,0,0,0.2); color: #fff;
+  border-color: rgba(255,255,255,0.3);
+}
+
+/* ---------- verdict ------------------------------------------------------ */
+.verdict {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px;
+}
+.verdict .badge {
+  font-size: 21px; font-weight: 700; letter-spacing: -0.01em;
+  padding: 6px 14px; border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+}
+.verdict .badge.pass { color: var(--good); }
+.verdict .badge.fail { color: var(--crit); }
+.verdict .tally { color: var(--text-secondary); font-size: 13px; }
+.verdict .tally b { color: var(--text-primary); }
+
+/* ---------- stat tiles --------------------------------------------------- */
+/* auto-fit, NOT a fixed 6: the tile count varies (DSR only appears when the run
+   has one), and a fixed track count leaves a dead grey cell on the wrap row. */
+.tiles {
+  display: grid; gap: 1px; background: var(--border);
+  border-top: 1px solid var(--border);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.tile { background: var(--surface-1); padding: 11px 14px; min-width: 0; }
+.tile .k {
+  color: var(--muted); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  display: block; margin-bottom: 3px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.tile .v {
+  font-size: 19px; font-weight: 650; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; display: block; line-height: 1.2;
+}
+.tile .s { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.tile .v.pos { color: var(--good); }
+.tile .v.neg { color: var(--crit); }
+
+/* ---------- tables ------------------------------------------------------- */
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+caption {
+  caption-side: top; text-align: left; color: var(--muted);
+  font-size: 11.5px; padding: 0 14px 8px;
+}
+th, td {
+  text-align: left; padding: 6px 12px;
+  border-bottom: 1px solid var(--grid); white-space: nowrap;
+}
+thead th {
+  color: var(--muted); font-weight: 650; font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  position: sticky; top: 0; background: var(--surface-1); z-index: 1;
+}
+tbody tr:hover { background: var(--surface-2); }
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.mono { font-family: var(--mono); font-size: 11.5px; color: var(--text-secondary); }
+.tbl-wrap { max-height: 420px; overflow: auto; }
+
+/* ---------- chips ------------------------------------------------------- */
+.chip {
+  display: inline-block; padding: 1px 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 650; white-space: nowrap;
+  border: 1px solid var(--border-strong); color: var(--text-secondary);
+}
+.chip.good { color: var(--good); border-color: currentColor; }
+.chip.crit { color: var(--crit); border-color: currentColor; }
+.chip.warn { color: var(--warn); border-color: currentColor; }
+.chip.info { color: var(--s1); border-color: currentColor; }
+.chip.plain { font-weight: 500; }
+
+/* ---------- controls ---------------------------------------------------- */
+button {
+  font: inherit; font-size: 13px; padding: 6px 11px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+  background: var(--surface-2); color: var(--text-primary); cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary {
+  background: var(--accent); color: var(--accent-ink);
+  border-color: transparent; font-weight: 600;
+}
+button.danger { color: var(--crit); }
+button.ghost { background: none; }
+button.sm { padding: 3px 8px; font-size: 12px; }
+
+input[type="text"], input[type="number"], input[type="date"], select {
+  font: inherit; font-size: 13px; padding: 5px 8px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+  background: var(--plane); color: var(--text-primary); min-width: 0;
+}
+input:disabled, select:disabled { opacity: 0.55; }
+label { font-size: 12.5px; color: var(--text-secondary); }
+
+.field { display: grid; gap: 4px; min-width: 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row.end { justify-content: flex-end; }
+.formgrid { display: grid; gap: 10px; }
+@media (min-width: 620px) { .formgrid.c3 { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 620px) { .formgrid.c2 { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- composer: the pipeline -------------------------------------- */
+.pipe { display: grid; gap: 8px; }
+.stage {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--axis);
+  border-radius: var(--radius-sm); padding: 9px 11px;
+}
+.stage.k-data      { border-left-color: var(--muted); }
+.stage.k-detector  { border-left-color: var(--s1); }
+.stage.k-confirmation { border-left-color: var(--s3); }
+.stage.k-policy    { border-left-color: var(--s4); }
+.stage.k-filter    { border-left-color: var(--s2); }
+.stage.missing     { border-left-color: var(--crit); }
+.stage > .head { display: flex; align-items: center; gap: 8px; }
+.stage > .head .kind {
+  color: var(--muted); font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; flex: none;
+}
+.stage > .head .spacer { flex: 1 1 auto; }
+.stage .rationale {
+  color: var(--muted); font-size: 11.5px; margin: 6px 0 0; line-height: 1.45;
+}
+.stage .params {
+  display: grid; gap: 6px; margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.stage .params .field label { font-size: 11.5px; }
+.arrow { color: var(--muted); text-align: center; font-size: 11px; line-height: 1; }
+
+/* ---------- composer: evolution-eligibility panel ----------------------- */
+.elig-panel {
+  margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.elig-panel > summary {
+  cursor: pointer; list-style: none; padding: 8px 11px;
+  font-size: 12.5px; font-weight: 650; color: var(--text-secondary);
+}
+.elig-panel > summary::-webkit-details-marker { display: none; }
+.elig-panel > summary::before { content: "▸ "; color: var(--muted); }
+.elig-panel[open] > summary::before { content: "▾ "; }
+.elig-panel .note { padding: 0 11px; margin: 0 0 8px; }
+.elig-grid {
+  display: grid; gap: 6px 14px; padding: 0 11px 11px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+.elig-item {
+  display: flex; align-items: center; gap: 6px; font-size: 12.5px;
+  color: var(--text-secondary); cursor: pointer;
+}
+.elig-item input:disabled { cursor: not-allowed; }
+
+/* ---------- run tabs (Jesse-style sessions) ----------------------------- */
+.tabs {
+  display: flex; gap: 4px; overflow-x: auto; padding: 8px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 11px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: 1px solid transparent; border-bottom: none;
+  background: none; color: var(--text-secondary);
+  font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+}
+.tab:hover { background: var(--surface-2); }
+.tab[aria-selected="true"] {
+  background: var(--surface-1); color: var(--text-primary);
+  border-color: var(--border); font-weight: 600;
+  box-shadow: 0 1px 0 0 var(--surface-1);
+}
+.tab .led { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+.tab .led.running { background: var(--s1); animation: pulse 1.3s ease-in-out infinite; }
+.tab .led.done { background: var(--good); }
+.tab .led.error, .tab .led.failed { background: var(--crit); }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+/* ---------- progress ---------------------------------------------------- */
+.bar {
+  height: 5px; border-radius: 999px; background: var(--grid);
+  overflow: hidden; margin: 8px 0 0;
+}
+.bar > span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.bar.indet > span {
+  width: 35% !important; animation: slide 1.15s ease-in-out infinite;
+}
+@keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+
+pre.log {
+  max-height: 260px; overflow: auto; margin: 0;
+  background: var(--plane); border-top: 1px solid var(--border);
+  padding: 10px 14px; font-family: var(--mono); font-size: 11.5px;
+  line-height: 1.55; color: var(--text-secondary); white-space: pre-wrap;
+}
+
+/* ---------- charts ------------------------------------------------------ */
+.chart { padding: 6px 14px 14px; }
+svg.plot { display: block; width: 100%; height: auto; overflow: visible; }
+.grid-line { stroke: var(--grid); stroke-width: 1; }
+.axis-line { stroke: var(--axis); stroke-width: 1; }
+.baseline { stroke: var(--axis); stroke-width: 1; stroke-dasharray: 3 3; }
+.tick {
+  fill: var(--muted); font-size: 10.5px;
+  font-variant-numeric: tabular-nums; font-family: system-ui, sans-serif;
+}
+.series { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.s1 { stroke: var(--s1); } .s2 { stroke: var(--s2); }
+.s3 { stroke: var(--s3); } .s4 { stroke: var(--s4); }
+.fill-crit { fill: var(--crit); opacity: 0.16; }
+.stroke-crit { stroke: var(--crit); }
+.bar-pos { fill: var(--good); } .bar-neg { fill: var(--crit); }
+.oos-band { fill: var(--oos); }
+.dlabel {
+  font-size: 11px; font-weight: 650; font-family: system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.dlabel.s1t { fill: var(--s1); } .dlabel.s2t { fill: var(--s2); }
+.crosshair { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.hit { fill: transparent; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 14px 12px; }
+.lg {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--text-secondary); font-size: 12px;
+}
+.sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+/* heatmap: diverging = two hues + NEUTRAL GRAY midpoint (never a rainbow) */
+.heat { border-collapse: separate; border-spacing: 2px; width: auto; }
+.heat th { border: none; background: none; position: static; padding: 3px 6px; }
+.heat td {
+  border: none; border-radius: 3px; padding: 5px 7px; text-align: right;
+  font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 600;
+  min-width: 46px; color: var(--text-primary);
+}
+.heat td.void { background: none; color: var(--muted); font-weight: 400; }
+
+#tip {
+  position: fixed; pointer-events: none; opacity: 0; transition: opacity .08s;
+  background: var(--surface-1); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); padding: 8px 10px;
+  font: 12px/1.55 system-ui, sans-serif; color: var(--text-primary);
+  box-shadow: var(--shadow); z-index: 40; max-width: 280px;
+}
+#tip b { font-variant-numeric: tabular-nums; }
+
+/* ---------- evolution: sidebar + replay player --------------------------- */
+.evo-layout { display: flex; gap: 12px; align-items: flex-start; }
+.evo-sidebar { flex: 0 0 260px; width: 260px; min-width: 260px; }
+.evo-main { flex: 1 1 auto; min-width: 0; }
+
+.evo-gen-list { display: grid; gap: 6px; margin-top: 4px; }
+.evo-gen {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.evo-gen > summary {
+  cursor: pointer; list-style: none; padding: 7px 9px;
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 12.5px; color: var(--text-secondary);
+}
+.evo-gen > summary::-webkit-details-marker { display: none; }
+.evo-gen > summary::before { content: "▸ "; color: var(--muted); }
+.evo-gen[open] > summary::before { content: "▾ "; }
+.evo-gen-idx { font-weight: 650; color: var(--text-primary); }
+.evo-gen-best { font-variant-numeric: tabular-nums; }
+.evo-member-list { display: grid; gap: 3px; padding: 0 6px 7px; }
+.evo-member {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 5px 7px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: none; color: var(--text-secondary); font: inherit; font-size: 12px;
+  cursor: pointer; text-align: left;
+}
+.evo-member:hover { background: var(--surface-1); }
+.evo-member.active {
+  background: var(--surface-1); border-color: var(--border); color: var(--text-primary);
+}
+.evo-member .idx { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; width: 26px; }
+.evo-member .role { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evo-member .fit { font-variant-numeric: tabular-nums; flex: none; }
+
+/* Segmented toggle buttons: Replay|Table, and the 1x/4x/16x speed group.
+   Deliberately new (not the .tabs/.tab session idiom, which carries a status
+   LED that has no meaning here) but built from the same tokens. */
+.seg { display: inline-flex; gap: 2px; }
+.seg-btn {
+  padding: 5px 10px; font-size: 12.5px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); background: var(--surface-2);
+  color: var(--text-secondary); cursor: pointer; font: inherit;
+}
+.seg-btn:hover:not(:disabled) { border-color: var(--muted); }
+.seg-btn[aria-selected="true"], .seg-btn.active {
+  background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600;
+}
+.seg.sm .seg-btn { padding: 3px 8px; font-size: 11.5px; }
+
+.evo-zoombar { margin: 10px 14px 0; flex-wrap: wrap; gap: 10px; }
+.evo-zoombar .hint { color: var(--muted); font-size: 11.5px; }
+.evo-controls { margin: 10px 14px; flex-wrap: wrap; }
+.evo-position { padding: 0 14px 14px; min-height: 1.4em; }
+.evo-pos-line { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 12.5px; }
+
+/* candlesticks: wick as a thin stroke, body reuses the existing bar-pos/neg
+   fill tokens so a candle and the trade P&L histogram read as the same
+   colour system. */
+.wick-pos { stroke: var(--good); stroke-width: 1; }
+.wick-neg { stroke: var(--crit); stroke-width: 1; }
+
+/* trade overlay: shaded pattern zone (an APPROXIMATION -- detectors do not
+   persist pivot geometry, see the composer eligibility note's sibling in
+   evoRevealEntry) + entry/stop/target dashed levels + markers.
+
+   The zone is a compact band around the entry price, not a full-height
+   rectangle -- candles stay readable underneath. Its border colour ties it
+   to that trade's direction (matching the ▲/▼ entry marker) since fill alone
+   read as generic. NO price text is drawn on the plot at all: the numbers live
+   in the hover tooltip (evoTradeTip) and in the performance panel below the
+   chart, which is what freed the right margin. */
+.evo-zone { fill: var(--s1); fill-opacity: 0.16; stroke-width: 1; stroke-opacity: 0.55; }
+.evo-zone.evo-zone-long { stroke: var(--good); }
+.evo-zone.evo-zone-short { stroke: var(--crit); }
+.evo-zone-label {
+  font-size: 9.5px; font-weight: 650; fill: var(--text-secondary);
+  font-family: system-ui, sans-serif;
+}
+.evo-line-entry { stroke: var(--s1); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.evo-line-stop { stroke: var(--crit); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.evo-line-target { stroke: var(--good); stroke-width: 1.4; stroke-dasharray: 4 3; }
+/* Invisible hover band over a trade's span: the trade's numbers live in the
+   tooltip now, not in a callout column beside the plot. */
+.evo-trade-hit { fill: transparent; cursor: help; }
+.evo-marker { font-size: 13px; font-weight: 700; }
+.evo-marker.evo-long { fill: var(--good); }
+.evo-marker.evo-short { fill: var(--crit); }
+.evo-exit-marker { stroke: var(--surface-1); stroke-width: 1; }
+.sw-zone { background: var(--s1); opacity: 0.55; }
+
+/* ---------- evolution: viewport, overview strip, performance panel -------- */
+/* The price plot is a fixed-height viewport onto a WINDOW of bars, so the
+   cursor has to advertise that dragging it pans. */
+.evo-hit { cursor: grab; }
+.chart.panning .evo-hit, .chart.panning { cursor: grabbing; }
+.grid-vert { opacity: 0.55; }
+
+.evo-overview { padding: 0 14px 4px; }
+.evo-overview-plot { height: 54px; }
+.evo-ov-hit { cursor: crosshair; }
+.evo-ov-line { stroke-width: 1.2; opacity: 0.75; }
+/* The view window is a LIFTED region, not a tinted one: the strip outside it
+   stays fully legible, which is what makes it usable as a range selector. */
+.evo-ov-window {
+  fill: var(--s1); fill-opacity: 0.13;
+  stroke: var(--s1); stroke-width: 1; stroke-opacity: 0.65;
+}
+.evo-ov-select { fill: var(--s1); fill-opacity: 0.22; stroke: var(--s1); stroke-width: 1; }
+.evo-ov-tick { stroke-width: 1; stroke-opacity: 0.4; }
+.evo-ov-tick.long { stroke: var(--good); }
+.evo-ov-tick.short { stroke: var(--crit); }
+.evo-ov-cursor { stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 2 2; }
+
+.evo-perf { border-top: 1px solid var(--border); }
+/* Narrower tracks than the Results tiles: six replay stats beside the 260px
+   sidebar wrapped 5+1, leaving a dead cell on the second row. */
+.evo-perf .tiles {
+  border-top: none;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+}
+.evo-perf table { font-size: 12px; }
+/* Underwater plot: filled area + a readable edge, same idiom as the standalone
+   performance chart (scripts/build_performance_chart.py). */
+.evo-uw { fill: var(--crit); fill-opacity: 0.18; stroke: var(--crit); stroke-width: 1.4; }
+
+/* ---------- responsive -------------------------------------------------- */
+@media (max-width: 860px) {
+  #app { grid-template-columns: 1fr; grid-template-areas: "brand" "top" "rail" "main"; }
+  .brand { border-right: none; }
+  .rail {
+    flex-direction: row; overflow-x: auto; border-right: none;
+    border-bottom: 1px solid var(--border); padding: 6px;
+  }
+  .rail .group, .rail .fill, .rail .foot { display: none; }
+  .navlink { width: auto; white-space: nowrap; }
+  .topbar .meta { display: none; }
+  .evo-layout { flex-direction: column; }
+  .evo-sidebar { flex: none; width: 100%; min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0s !important; transition-duration: 0s !important; }
+}

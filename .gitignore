@@ -1,0 +1,39 @@
+data/*.db
+# SQLite WAL/SHM sidecars. data/*.db alone does NOT cover them, so a WAL-mode
+# database leaks two derived files into git status (v0.3.0 contract §6).
+data/*.db-wal
+data/*.db-shm
+# UI run bookkeeping (v0.3.0 Phase 7): a pid, an argv, a status and a log per
+# run, all derived and reproducible — deleting this directory loses nothing
+# of value. data/*.db does not match a directory, hence a separate line.
+data/ui_runs/
+.env
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Machine- and editor-local files. These were previously ignored ONLY via this
+# machine's ~/.gitignore_global, so any other clone would have committed them.
+# settings.local.json in particular carries local tool-permission config.
+.DS_Store
+**/.claude/settings.local.json
+
+# ---------------------------------------------------------------------------
+# DEPRECATED GENERATED ARTIFACTS — untracked 2026-07-28, kept on disk.
+#
+# These are machine-generated report outputs, not authored documentation: 17.1 MB
+# across five files, which was 81% of the entire 21.3 MB tracked repository. Two
+# are v0.1.0-era HTML dumps referenced by nothing at all.
+#
+# Nothing is lost. History was NOT rewritten, so every blob stays permanently
+# recoverable with `git show <commit>:<path>` — the exact commands, sizes and
+# sha256 sums are recorded in
+# .claude/PRPs/reports/DEPRECATED-ARTIFACTS.md.
+# ---------------------------------------------------------------------------
+.claude/PRPs/reports/backtest-result-initial.html
+.claude/PRPs/reports/signal-report-after-breakout-fix.html
+.claude/PRPs/reports/phase7-walkforward-result.chart.html
+.claude/PRPs/reports/bruteforce-strategy/results/volatility_SELECT.csv
+.claude/PRPs/reports/bruteforce-strategy/results/volatility_TRAIN.csv

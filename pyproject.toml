@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trading-bot"
+# 0.3.2 = 0.3.1 plus pattern-detection correctness fixes (false-positive double-
+# top/bottom geometry, prior-trend confirmation, real chart geometry). The
+# validation gate still FAILS as of 0.3.0 — 5 of 7 conditions, champion return
+# -45.47% over the 182-day holdout (see KNOWN-LIMITATIONS-v0.3.0.md) — so this is
+# a code checkpoint, not a validated strategy. v0.2.0's limitations
+# (KNOWN-LIMITATIONS.md) are NOT superseded and still stand. Every existing
+# backtest number describes detector code that no longer exists as of 0.3.2 —
+# see .claude/PRPs/reports/v0.3.2-pattern-detection-correctness-report.md.
+version = "0.3.2"
+requires-python = ">=3.11"
+dependencies = [
+    "ccxt",
+    "pandas",
+    # DECLARED EXPLICITLY, not inherited from pandas. numpy is imported directly by
+    # 27 modules across src/, scripts/ and tests/; relying on pandas to pull it in
+    # means a `--no-deps` install, or any future pandas that drops the hard
+    # dependency, breaks with an ImportError instead of a resolver error.
+    "numpy",
+    # No indicator library. ADX/ATR/RSI/MACD/Bollinger/Donchian are hand-rolled
+    # under src/trading_bot/indicators/ because pandas-ta is gone from PyPI and
+    # TA-Lib needs a C library. KNOWN-LIMITATIONS-v0.3.0.md §8: no new indicator
+    # dependency may be added.
+    "apscheduler",
+]
+# DELIBERATELY ABSENT: python-dotenv. It was declared through v0.2.0 but never
+# imported, so `.env` was never actually loaded. The only two env vars read
+# anywhere are BINANCE_API_KEY / BINANCE_API_SECRET in exchange/binance_client.py,
+# both defaulting to "" (public OHLCV endpoints need no credentials). If `.env`
+# loading is ever wanted, re-add the dependency AND the load_dotenv() call in the
+# same change — declaring it alone silently does nothing.
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "network: marks tests as network tests (deselect with '-m \"not network\"')",
+]
+testpaths = ["tests"]

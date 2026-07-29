@@ -1,0 +1,91 @@
+{
+  "branches": [
+    {
+      "confirmations": [],
+      "detector": {
+        "id": "trend-detector",
+        "key": "detector.donchian-breakout",
+        "params": {}
+      },
+      "enabled": true,
+      "exits": {
+        "channel_exit": true,
+        "channel_period": 20,
+        "max_hold_bars": null,
+        "stop": true,
+        "target_enabled": true,
+        "trail_atr_multiple": 3.0,
+        "trail_atr_period": 14,
+        "trail_enabled": false
+      },
+      "id": "trend",
+      "policy": {
+        "id": "trend-policy",
+        "key": "policy.measured-move",
+        "params": {}
+      },
+      "regimes": [
+        "trending"
+      ]
+    },
+    {
+      "confirmations": [],
+      "detector": {
+        "id": "momentum-detector",
+        "key": "detector.macd-cross",
+        "params": {}
+      },
+      "enabled": true,
+      "exits": {
+        "channel_exit": false,
+        "channel_period": 20,
+        "max_hold_bars": null,
+        "stop": true,
+        "target_enabled": true,
+        "trail_atr_multiple": 3.0,
+        "trail_atr_period": 14,
+        "trail_enabled": false
+      },
+      "id": "momentum",
+      "policy": {
+        "id": "momentum-policy",
+        "key": "policy.measured-move",
+        "params": {}
+      },
+      "regimes": [
+        "any"
+      ]
+    }
+  ],
+  "data": {
+    "id": "ohlcv",
+    "key": "data.ohlcv",
+    "params": {}
+  },
+  "filters": [
+    {
+      "id": "rr-filter",
+      "key": "filter.rr-after-costs",
+      "params": {}
+    }
+  ],
+  "meta": {
+    "confirmations": "NONE \u2014 this is the ablation baseline for the volume/MACD gate-cost measurement",
+    "parameters": "every detector/policy/filter parameter is at its canonical config default; NOTHING in this graph was chosen by search",
+    "phase": "v0.3.0 Phase 4 \u2014 strategy pipeline thin slice",
+    "pivot_guide_steps": "1-5 (detect -> confirm -> position -> R:R filter -> backtest)"
+  },
+  "name": "thin-slice-noconfirm",
+  "regime": {
+    "adx_trend_threshold": 25.0,
+    "atr_extreme_percentile": 0.9,
+    "enabled": true,
+    "timeframe": "1d"
+  },
+  "schema_version": 1,
+  "trigger": {
+    "lookback_bars": 1,
+    "volume_high_ratio": 1.5,
+    "volume_lookback": 20
+  }
+}

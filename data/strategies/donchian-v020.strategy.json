@@ -1,0 +1,89 @@
+{
+  "branches": [
+    {
+      "confirmations": [],
+      "detector": {
+        "id": "trend-detector",
+        "key": "detector.donchian-breakout",
+        "params": {}
+      },
+      "enabled": true,
+      "exits": {
+        "channel_exit": true,
+        "channel_period": 20,
+        "max_hold_bars": null,
+        "stop": true,
+        "target_enabled": false,
+        "trail_atr_multiple": 3.0,
+        "trail_atr_period": 14,
+        "trail_enabled": false
+      },
+      "id": "trend",
+      "policy": {
+        "id": "trend-policy",
+        "key": "policy.atr-stop-measured-move",
+        "params": {
+          "rr_floor": 1.5
+        }
+      },
+      "regimes": [
+        "trending"
+      ]
+    },
+    {
+      "confirmations": [],
+      "detector": {
+        "id": "range-detector",
+        "key": "detector.bollinger-fade",
+        "params": {
+          "num_std": 2.0
+        }
+      },
+      "enabled": true,
+      "exits": {
+        "channel_exit": false,
+        "channel_period": 20,
+        "max_hold_bars": null,
+        "stop": true,
+        "target_enabled": true,
+        "trail_atr_multiple": 3.0,
+        "trail_atr_period": 14,
+        "trail_enabled": false
+      },
+      "id": "range",
+      "policy": {
+        "id": "range-policy",
+        "key": "policy.fade-structural-stop",
+        "params": {
+          "rr_floor": 1.5
+        }
+      },
+      "regimes": [
+        "ranging"
+      ]
+    }
+  ],
+  "data": {
+    "id": "ohlcv",
+    "key": "data.ohlcv",
+    "params": {}
+  },
+  "filters": [],
+  "meta": {
+    "gate": "FAILING \u2014 2 of 5 conditions (KNOWN-LIMITATIONS \u00a71)",
+    "provenance": "v0.2.0 Phases 1-7, see .claude/PRPs/reports/KNOWN-LIMITATIONS.md"
+  },
+  "name": "donchian-v020",
+  "regime": {
+    "adx_trend_threshold": 25.0,
+    "atr_extreme_percentile": 0.9,
+    "enabled": true,
+    "timeframe": "1d"
+  },
+  "schema_version": 1,
+  "trigger": {
+    "lookback_bars": 1,
+    "volume_high_ratio": 1.5,
+    "volume_lookback": 20
+  }
+}

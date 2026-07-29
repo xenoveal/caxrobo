@@ -1,0 +1,52 @@
+{
+  "branches": [
+    {
+      "confirmations": [],
+      "detector": {
+        "id": "detector-1",
+        "key": "detector.cup-and-handle",
+        "params": {}
+      },
+      "enabled": true,
+      "exits": {
+        "channel_exit": false,
+        "channel_period": 20,
+        "max_hold_bars": null,
+        "stop": true,
+        "target_enabled": false,
+        "trail_atr_multiple": 3.0,
+        "trail_atr_period": 14,
+        "trail_enabled": false
+      },
+      "id": "main",
+      "policy": {
+        "id": "policy-2",
+        "key": "policy.atr-stop-measured-move",
+        "params": {}
+      },
+      "regimes": [
+        "any"
+      ]
+    }
+  ],
+  "data": {
+    "id": "data-0",
+    "key": "data.ohlcv",
+    "params": {}
+  },
+  "filters": [],
+  "meta": {},
+  "name": "cup-and-handle",
+  "regime": {
+    "adx_trend_threshold": 25.0,
+    "atr_extreme_percentile": 0.9,
+    "enabled": true,
+    "timeframe": "1d"
+  },
+  "schema_version": 1,
+  "trigger": {
+    "lookback_bars": 1,
+    "volume_high_ratio": 1.5,
+    "volume_lookback": 20
+  }
+}

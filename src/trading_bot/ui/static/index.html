@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>trading_bot — strategy workbench</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div id="app">
+  <div class="brand"><span class="dot" aria-hidden="true"></span> trading_bot</div>
+
+  <div class="topbar">
+    <span class="chip plain" title="This server binds loopback only and has no authentication.">loopback · no auth</span>
+    <span class="spacer"></span>
+    <div class="meta">
+      <span>strategies <code id="meta-strategy-dir">…</code></span>
+      <span>state <code id="meta-state-db">…</code></span>
+    </div>
+    <button id="btn-theme" class="ghost sm" type="button" aria-label="Toggle light or dark theme">◐ theme</button>
+  </div>
+
+  <nav class="rail" aria-label="Sections">
+    <div class="group">Build</div>
+    <button class="navlink" data-view="compose" type="button"><span class="ic" aria-hidden="true">◧</span> Composer</button>
+    <button class="navlink" data-view="data" type="button"><span class="ic" aria-hidden="true">▤</span> Data</button>
+    <div class="group">Evaluate</div>
+    <button class="navlink" data-view="results" type="button"><span class="ic" aria-hidden="true">◈</span> Results</button>
+    <button class="navlink" data-view="evolution" type="button"><span class="ic" aria-hidden="true">⧉</span> Evolution</button>
+    <button class="navlink" data-view="reviews" type="button"><span class="ic" aria-hidden="true">◍</span> Reviews</button>
+    <div class="group">Reference</div>
+    <button class="navlink" data-view="plugins" type="button"><span class="ic" aria-hidden="true">⬡</span> Plug-ins</button>
+    <div class="fill"></div>
+    <p class="foot">Fitness comes only from THE GATE. Backtests are diagnostics and charge no trial.</p>
+  </nav>
+
+  <main>
+    <div id="error" role="alert" hidden></div>
+
+    <!-- ============================ COMPOSER ============================ -->
+    <section class="view" id="view-compose" hidden>
+      <div class="view-head">
+        <h1>Composer</h1>
+        <p>Assemble a strategy graph from registered plug-ins, then validate and save it.</p>
+      </div>
+
+      <div class="cols side">
+        <div>
+          <div class="panel">
+            <header>
+              <h2>Pipeline</h2>
+              <span id="editable-chip"></span>
+              <span class="spacer"></span>
+              <button id="btn-validate" class="sm" type="button">Validate</button>
+              <button id="btn-save" class="sm primary" type="button">Save</button>
+            </header>
+            <div class="body">
+              <div class="formgrid c2" style="margin-bottom:12px">
+                <div class="field">
+                  <label for="strategy-name">Strategy name</label>
+                  <input id="strategy-name" type="text" value="new-strategy" spellcheck="false">
+                </div>
+                <div class="field">
+                  <label for="load-strategy">Load saved</label>
+                  <select id="load-strategy"><option value="">(none saved)</option></select>
+                </div>
+              </div>
+              <div id="pipe" class="pipe"></div>
+              <div class="row" style="margin-top:12px">
+                <button id="btn-add-detector" class="sm" type="button">+ detector</button>
+                <button id="btn-add-confirmation" class="sm" type="button">+ confirmation</button>
+                <button id="btn-add-filter" class="sm" type="button">+ filter</button>
+              </div>
+              <details id="evo-eligibility" class="elig-panel">
+                <summary>Evolution eligibility</summary>
+                <p class="note">Unchecked detectors are excluded from the pool evolution may swap
+                in or add. Detectors already used by this pipeline stay checked and locked in —
+                evolution may prune one, but never re-introduce it. All checked (the default)
+                stores no constraint at all.</p>
+                <div id="evo-eligibility-body" class="elig-grid"></div>
+              </details>
+              <div id="validate-result"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel">
+            <header><h2>Run</h2></header>
+            <div class="body">
+              <div class="field" style="margin-bottom:10px">
+                <label for="run-campaign-select">Campaign</label>
+                <select id="run-campaign-select"></select>
+              </div>
+              <div class="field" id="run-campaign-new-field" style="margin-bottom:10px" hidden>
+                <label for="run-campaign">New campaign name</label>
+                <input id="run-campaign" type="text" value="" spellcheck="false"
+                       placeholder="e.g. cup-and-handle-v2">
+              </div>
+              <div id="run-campaign-stats" class="note" style="margin-bottom:10px"></div>
+              <p class="callout">Every <strong>gate</strong> and <strong>evolve</strong> run adds
+              trials to this campaign's ledger, permanently raising its DSR penalty. Use a scratch
+              name like <code>ui-smoke</code> to explore. Evolving an <em>existing</em> campaign
+              continues improving the population it already paid for, and
+              <strong>backtest and gate then score that campaign's champion</strong>, not the
+              seed graph on disk — pick a new campaign name to evaluate the seed itself.</p>
+              <div class="row" style="gap:10px">
+                <div class="field" style="margin-bottom:10px">
+                  <label for="run-population" id="run-population-label">Population</label>
+                  <input id="run-population" type="number" min="1" step="1"
+                         placeholder="default">
+                </div>
+                <div class="field" style="margin-bottom:10px">
+                  <label for="run-generations" id="run-generations-label">Generations</label>
+                  <input id="run-generations" type="number" min="1" step="1"
+                         placeholder="default">
+                </div>
+              </div>
+              <p class="note" id="run-evo-settings-note" style="margin:-4px 0 10px">
+                Blank uses config defaults.</p>
+              <div class="row">
+                <button id="btn-backtest" type="button">Backtest</button>
+                <button id="btn-gate" class="primary" type="button">Run gate</button>
+              </div>
+              <div class="row" style="margin-top:8px">
+                <button id="btn-evolve" type="button">Start evolution</button>
+              </div>
+              <p class="note">Backtest is an in-sample diagnostic and charges nothing.
+              Evolution runs for many minutes.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================ RESULTS ============================= -->
+    <section class="view" id="view-results" hidden>
+      <div class="view-head">
+        <h1>Results</h1>
+        <p>One tab per run. Verdicts come from the engine — this page never recomputes a pass or fail.</p>
+      </div>
+
+      <div class="panel">
+        <div class="tabs" id="run-tabs" role="tablist" aria-label="Runs"></div>
+        <div id="run-empty" class="empty">No runs yet. Compose a strategy, then Backtest or Run gate.</div>
+        <div id="run-detail" hidden>
+          <div id="verdict" class="verdict"></div>
+          <div id="run-progress"></div>
+          <div id="tiles" class="tiles"></div>
+        </div>
+      </div>
+
+      <div id="results-body" hidden>
+        <div class="panel" id="panel-gate" hidden>
+          <header>
+            <h2>Gate conditions</h2>
+            <span class="spacer"></span>
+            <button id="btn-copy-metrics" class="sm ghost" type="button" title="Copy all metrics as aligned plain text">⧉ copy metrics</button>
+          </header>
+          <div class="body flush scroll-x"><div id="gate-table"></div></div>
+        </div>
+
+        <div class="panel" id="panel-equity" hidden>
+          <header><h2 id="equity-title">Cumulative return</h2></header>
+          <div id="chart-equity" class="chart"></div>
+          <div id="legend-equity" class="legend"></div>
+          <p class="note" id="equity-note" style="padding:0 14px 12px">Net of the same cost model
+          throughout. Beating a basket that itself lost money means only losing less than
+          holding — not an edge.</p>
+        </div>
+
+        <div class="cols two">
+          <div class="panel" id="panel-underwater" hidden>
+            <header><h2>Underwater (drawdown from peak)</h2></header>
+            <div id="chart-underwater" class="chart"></div>
+            <p class="note" style="padding:0 14px 12px">The deepest point here is the drawdown the
+            gate scored. A windowed drawdown is not a risk estimate.</p>
+          </div>
+          <div class="panel" id="panel-pnl" hidden>
+            <header><h2>Trade P&amp;L distribution</h2></header>
+            <div id="chart-pnl" class="chart"></div>
+            <p class="note" style="padding:0 14px 12px">After costs, per closed trade.</p>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-monthly" hidden>
+          <header><h2>Monthly returns</h2></header>
+          <div class="body tight scroll-x"><div id="heat-monthly"></div></div>
+        </div>
+
+        <div class="cols two">
+          <div class="panel" id="panel-persym" hidden>
+            <header><h2>Per-symbol</h2></header>
+            <div class="body flush scroll-x"><div id="per-symbol"></div></div>
+          </div>
+          <div class="panel" id="panel-bench" hidden>
+            <header><h2>Benchmark, absolute</h2></header>
+            <div class="body flush scroll-x"><div id="bench-table"></div></div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel-folds" hidden>
+          <header><h2>Walk-forward folds</h2></header>
+          <div class="body flush scroll-x"><div id="folds-table"></div></div>
+        </div>
+
+        <div class="panel" id="panel-trades" hidden>
+          <header>
+            <h2>Trades</h2>
+            <span class="spacer"></span>
+            <span id="trades-count" class="chip plain"></span>
+          </header>
+          <div class="body flush"><div id="trades-table" class="tbl-wrap"></div></div>
+        </div>
+      </div>
+
+      <div class="panel" id="log-panel" hidden>
+        <header>
+          <h2>Run log</h2>
+          <span class="spacer"></span>
+          <button id="btn-stop" class="sm danger" type="button" hidden>Stop run</button>
+        </header>
+        <pre id="run-log" class="log"></pre>
+      </div>
+    </section>
+
+    <!-- ============================== DATA ============================== -->
+    <section class="view" id="view-data" hidden>
+      <div class="view-head">
+        <h1>Data</h1>
+        <p>Stored OHLCV coverage. The currently forming bar is never counted as closed.</p>
+      </div>
+      <div class="panel">
+        <header><h2>Coverage</h2></header>
+        <div class="body flush scroll-x"><div id="coverage-table">Loading…</div></div>
+      </div>
+    </section>
+
+    <!-- ============================ EVOLUTION =========================== -->
+    <section class="view" id="view-evolution" hidden>
+      <div class="view-head">
+        <h1>Evolution</h1>
+        <p>Generations and members for a campaign, replayed bar-by-bar. Fitness is
+        benchmark-relative, never DSR. Replay re-derives trades deterministically —
+        it never touches the trial ledger.</p>
+      </div>
+
+      <div class="evo-layout">
+        <div class="evo-sidebar panel">
+          <div class="body">
+            <div class="field" style="margin-bottom:10px">
+              <label for="generations-campaign-select">Campaign</label>
+              <select id="generations-campaign-select"></select>
+            </div>
+            <div id="evo-gen-list" class="evo-gen-list"></div>
+          </div>
+        </div>
+
+        <div class="evo-main">
+          <div class="panel">
+            <header>
+              <span class="seg" role="tablist" aria-label="Evolution view">
+                <button id="evo-tab-replay" class="seg-btn" type="button" role="tab" aria-selected="true">Replay</button>
+                <button id="evo-tab-table" class="seg-btn" type="button" role="tab" aria-selected="false">Table</button>
+              </span>
+              <span class="spacer"></span>
+              <select id="evo-symbol" title="Symbol"></select>
+              <select id="evo-timeframe" title="Timeframe"></select>
+            </header>
+
+            <div id="evo-replay-pane" class="body">
+              <div id="evo-replay-empty" class="empty">Pick a member from a generation in the
+                sidebar to replay it.</div>
+              <div id="evo-replay-body" hidden>
+                <p id="evo-loading" class="note" hidden>Running replay backtest… this re-runs a
+                  real backtest and can take a few seconds.</p>
+                <div class="row evo-zoombar">
+                  <span class="seg sm" role="group" aria-label="Zoom">
+                    <button id="evo-zoom-out" class="seg-btn" type="button" disabled
+                            title="Zoom out">−</button>
+                    <button id="evo-zoom-in" class="seg-btn" type="button" disabled
+                            title="Zoom in">+</button>
+                    <button id="evo-zoom-trades" class="seg-btn" type="button" disabled
+                            title="Fit the view to the trades">fit trades</button>
+                    <button id="evo-zoom-fit" class="seg-btn" type="button" disabled
+                            title="Show the whole replay window">⤢ all</button>
+                  </span>
+                  <span class="hint">scroll to zoom · drag to pan · double-click to reset ·
+                    drag the strip below the chart to select a range</span>
+                </div>
+                <div id="evo-chart" class="chart"></div>
+                <div id="evo-overview" class="evo-overview"></div>
+                <div id="evo-legend" class="legend"></div>
+                <div class="row evo-controls">
+                  <button id="evo-btn-reset" class="sm ghost" type="button" title="Reset to first bar">⏮</button>
+                  <button id="evo-btn-play" class="sm" type="button" disabled>▶ play</button>
+                  <span id="evo-speed-group" class="seg sm" role="group" aria-label="Speed">
+                    <button class="seg-btn active" data-speed="1" type="button">1×</button>
+                    <button class="seg-btn" data-speed="4" type="button">4×</button>
+                    <button class="seg-btn" data-speed="16" type="button">16×</button>
+                  </span>
+                  <input id="evo-scrub" type="range" min="0" max="0" value="0" disabled
+                         style="flex:1 1 160px" aria-label="Scrub to bar">
+                </div>
+                <div id="evo-position" class="evo-position"></div>
+                <div id="evo-perf" class="evo-perf"></div>
+              </div>
+            </div>
+
+            <div id="evo-table-pane" class="body flush scroll-x" hidden>
+              <div class="row" style="padding:10px 14px 0">
+                <input id="generations-campaign" type="text" value="" spellcheck="false"
+                       placeholder="campaign id or label" hidden>
+                <button id="btn-load-generations" class="sm" type="button">Load</button>
+              </div>
+              <div id="generations-table"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================= REVIEWS ============================ -->
+    <section class="view" id="view-reviews" hidden>
+      <div class="view-head">
+        <h1>Reviews</h1>
+        <p>Per-trade reviews against each trade's own prediction. Reviews inform; the gate decides.</p>
+      </div>
+      <div class="panel">
+        <header><h2>Review records</h2></header>
+        <div class="body flush"><div id="reviews-table" class="tbl-wrap">Loading…</div></div>
+      </div>
+    </section>
+
+    <!-- ============================= PLUG-INS =========================== -->
+    <section class="view" id="view-plugins" hidden>
+      <div class="view-head">
+        <h1>Plug-ins</h1>
+        <p>Every registered plug-in carries a rationale. Declared degrees of freedom are an
+        inventory, not a spend — the DSR is charged for evaluations actually performed.</p>
+      </div>
+      <div class="panel">
+        <header>
+          <h2>Registry</h2>
+          <span class="spacer"></span>
+          <select id="plugin-kind"><option value="">all kinds</option></select>
+        </header>
+        <div class="body flush"><div id="plugins-list" class="tbl-wrap">Loading…</div></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="tip" role="tooltip" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>
